@@ -32,13 +32,19 @@ export function AuthPage() {
     setBusy(true)
     try {
       if (mode === 'signup') {
-        const { error: authError } = await supabase.auth.signUp({
+        const { data, error: authError } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { full_name: fullName, phone } },
         })
         if (authError) throw authError
-        setMessage('Check your email for a confirmation link to finish creating your account.')
+        if (data.session) {
+          const redirectState = location.state as { from?: string; checkout?: unknown } | null
+          if (redirectState?.from) navigate(redirectState.from, { state: redirectState.checkout })
+          else navigate('/dashboard')
+        } else {
+          setMessage('Account created. Log in with the same email and password.')
+        }
       } else if (mode === 'reset') {
         const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/update-password`,
