@@ -23,3 +23,5 @@ The live site is deployed on Vercel (project `the-take-over-tickets`).
 ## Never commit secrets
 
 `.env` is in `.gitignore`. Keep Supabase and Resend keys in Vercel / Supabase environment settings.
+
+The `send-ticket-email` function reads `RESEND_API_KEY` and `EMAIL_FROM` from Supabase Edge Function secrets. `SITE_URL` is optional. Redeploy that function after changing it.

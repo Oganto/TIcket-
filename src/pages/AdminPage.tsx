@@ -122,6 +122,13 @@ export function AdminPage() {
     return () => { alive = false }
   }, [location.pathname, navigate, refresh, tab])
 
+  async function sendTicketEmail(orderId: string, successText: string, failurePrefix: string) {
+    if (!supabase) return
+    const { error: emailError } = await supabase.functions.invoke('send-ticket-email', { body: { orderId } })
+    if (emailError) setNotice({ kind: 'error', text: `${failurePrefix}: ${await describeFunctionError(emailError)}` })
+    else setNotice({ kind: 'success', text: successText })
+  }
+
   async function reviewOrder(order: AdminOrder, approve: boolean) {
     if (!supabase || workingId) return
     if (!approve && !window.confirm('Reject this payment proof?')) return
@@ -136,9 +143,7 @@ export function AdminPage() {
         return
       }
       if (approve) {
-        const { error: emailError } = await supabase.functions.invoke('send-ticket-email', { body: { orderId: order.id } })
-        if (emailError) setNotice({ kind: 'error', text: `Payment approved, but the ticket email was not sent: ${await describeFunctionError(emailError)}` })
-        else setNotice({ kind: 'success', text: 'Payment approved and ticket email sent.' })
+        await sendTicketEmail(order.id, 'Payment approved and ticket email sent.', 'Payment approved, but the ticket email was not sent')
       } else {
         setNotice({ kind: 'success', text: 'Payment marked as rejected.' })
       }
@@ -170,7 +175,7 @@ export function AdminPage() {
           <div className="admin-order-heading"><div><span className={`status-pill status-${order.payment_status}`}>{order.payment_status}</span><h2>{order.profiles?.full_name || 'Customer'}</h2><small>{order.profiles?.email} {order.profiles?.phone ? `· ${order.profiles.phone}` : ''}</small></div><strong>{Number(order.total_amount).toLocaleString()}</strong></div>
           <div className="admin-order-detail"><span>{order.ticket_types?.name} × {order.quantity}</span><span>{order.events?.name}</span><span>{new Date(order.created_at).toLocaleString()}</span></div>
           {order.payment_status === 'pending' && <div className="admin-order-actions">{proofLinks[order.id] && <a className="proof-link" href={proofLinks[order.id]} target="_blank" rel="noreferrer">Open payment proof <ArrowUpRight size={15} /></a>}<div><button className="reject-button" disabled={workingId !== ''} onClick={() => void reviewOrder(order, false)}><X size={15} /> Reject</button><button className="approve-button" disabled={workingId !== ''} onClick={() => void reviewOrder(order, true)}><Check size={15} /> {workingId === order.id ? 'Approving…' : 'Approve'}</button></div></div>}
-          {order.payment_status === 'approved' && <div className="admin-order-detail">{order.tickets?.map((ticket) => <span key={ticket.id}>{ticket.ticket_code}{ticket.checked_in ? ' · Used' : ''}</span>)}</div>}
+          {order.payment_status === 'approved' && <div className="admin-order-actions"><div className="admin-order-detail">{order.tickets?.map((ticket) => <span key={ticket.id}>{ticket.ticket_code}{ticket.checked_in ? ' · Used' : ''}</span>)}</div><button className="approve-button" disabled={workingId !== ''} onClick={() => { setWorkingId(order.id); void sendTicketEmail(order.id, 'Ticket email sent.', 'Ticket email was not sent').finally(() => setWorkingId('')) }}><Check size={15} /> {workingId === order.id ? 'Sending…' : 'Send ticket email'}</button></div>}
         </article>)}{filteredOrders.length === 0 && <p className="empty-admin">No matching orders.</p>}</section>}
         {tab === 'tickets' && <section className="admin-list">{filteredTickets.map((ticket) => <article className="admin-ticket-row" key={ticket.id}><div><strong>{ticket.ticket_code}</strong><span>{ticket.profiles?.full_name} · {ticket.profiles?.email}</span></div><span>{ticket.ticket_types?.name}</span><span className={ticket.checked_in ? 'ticket-used' : 'ticket-valid'}>{ticket.checked_in ? 'Used' : ticket.status}</span></article>)}{filteredTickets.length === 0 && <p className="empty-admin">No matching tickets.</p>}</section>}
       </>}

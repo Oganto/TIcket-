@@ -9,7 +9,7 @@ const corsHeaders = {
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;',
   })[character] ?? character)
 }
 
@@ -20,22 +20,58 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
+function publishableKey() {
+  const map = Deno.env.get('SUPABASE_PUBLISHABLE_KEYS')
+  if (map) {
+    try {
+      const parsed = JSON.parse(map) as Record<string, string>
+      if (parsed.default) return parsed.default
+      const first = Object.values(parsed).find((value) => typeof value === 'string' && value.length > 0)
+      if (first) return first
+    } catch {
+      // Fall through to the single-key variables.
+    }
+  }
+  return Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY') || ''
+}
+
+function resolveSiteUrl(request: Request) {
+  const configured = Deno.env.get('SITE_URL')?.trim()
+  if (configured) return configured.replace(/\/$/, '')
+  const origin = request.headers.get('origin') || request.headers.get('referer')
+  if (origin) {
+    try {
+      return new URL(origin).origin
+    } catch {
+      // Ignore a malformed origin and use the production site.
+    }
+  }
+  return 'https://the-take-over-tickets-tomilolaisraeloginni-8779s-projects.vercel.app'
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
 
   const authorization = request.headers.get('Authorization')
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+  const apiKey = publishableKey()
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
   const emailFrom = Deno.env.get('EMAIL_FROM')
-  const siteUrl = Deno.env.get('SITE_URL')
-  if (!authorization || !supabaseUrl || !supabaseAnonKey || !resendApiKey || !emailFrom || !siteUrl) {
-    return jsonResponse({ error: 'Function configuration is incomplete' }, 500)
+  const siteUrl = resolveSiteUrl(request)
+  const missing = [
+    !authorization ? 'Authorization' : '',
+    !supabaseUrl ? 'SUPABASE_URL' : '',
+    !apiKey ? 'SUPABASE_PUBLISHABLE_KEYS' : '',
+    !resendApiKey ? 'RESEND_API_KEY' : '',
+    !emailFrom ? 'EMAIL_FROM' : '',
+  ].filter(Boolean)
+  if (missing.length > 0) {
+    return jsonResponse({ error: `Function configuration is incomplete: missing ${missing.join(', ')}` }, 500)
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authorization } },
+  const supabase = createClient(supabaseUrl!, apiKey, {
+    global: { headers: { Authorization: authorization!, apikey: apiKey } },
   })
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) return jsonResponse({ error: 'Authentication required' }, 401)
