@@ -31,7 +31,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .site-shell { min-height: 100vh; overflow: clip; }
 .site-header { height: 76px; padding: 0 6.25%; display: flex; align-items: center; justify-content: space-between; background: #f4f9f9; border-bottom: 1px solid #d9e7e8; position: relative; z-index: 2; }
 .brand { display: inline-flex; align-items: center; gap: 10px; }
-.brand-mark { width: 34px; height: 34px; display: grid; place-items: center; background: var(--night); color: #92e6ef; border-radius: 50%; }
+.brand-mark { width: 92px; height: 36px; display: grid; place-items: center; background: #000; border-radius: 6px; overflow: hidden; }
+.brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 .brand-name { font-size: 11px; line-height: 1.15; font-weight: 900; letter-spacing: 1px; }
 .brand-name span { display: block; margin-top: 4px; font-size: 8px; font-weight: 600; letter-spacing: 2px; color: #73848b; }
 .main-nav { display: flex; gap: 34px; color: #5a6c73; font-size: 13px; }
@@ -354,7 +355,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .site-header { position: sticky; top: 0; height: 70px; padding: 0 5.5%; background: rgba(5, 10, 18, .96); border-bottom: 1px solid #172538; color: #f3f6fb; backdrop-filter: blur(14px); }
 .brand { gap: 9px; }
-.brand-mark { width: 34px; height: 34px; background: #071e38; color: #26baff; border: 1px solid #1b4a72; border-radius: 50%; }
+.brand-mark { width: 92px; height: 36px; background: #000; border: 0; border-radius: 6px; }
 .brand-name { color: #f4f7fc; font-size: 10px; letter-spacing: 1.1px; }
 .brand-name span { color: #8293a7; font-size: 7px; letter-spacing: 1.5px; }
 .main-nav { gap: 30px; color: #aab6c6; font-size: 11px; }
@@ -500,7 +501,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .guest-shell :is(main, footer) { position: relative; z-index: 1; }
 .guest-shell .site-header { position: sticky; z-index: 20; top: 0; min-height: 72px; height: auto; padding: 0 clamp(18px, 5vw, 76px); display: grid; grid-template-columns: minmax(190px, 1fr) auto minmax(170px, 1fr); gap: 24px; background: rgba(7, 11, 18, .94); border-bottom: 1px solid var(--line); color: var(--mist); backdrop-filter: blur(12px); }
 .guest-shell .brand { min-height: 72px; gap: 11px; }
-.guest-shell .brand-mark { width: 36px; height: 36px; flex: 0 0 auto; background: var(--panel); color: var(--mist); border: 1px solid var(--line); }
+.guest-shell .brand-mark { width: 108px; height: 40px; flex: 0 0 auto; background: #000; color: var(--mist); border: 0; border-radius: 6px; overflow: hidden; }
 .guest-shell .brand-name { color: var(--mist); font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0; }
 .guest-shell .brand-name span { margin-top: 3px; color: var(--mute); font: 12px/1.25 var(--font-body); }
 .guest-shell .main-nav { display: flex; align-items: center; justify-content: center; gap: clamp(15px, 2.4vw, 36px); color: var(--mute); font-size: 14px; }

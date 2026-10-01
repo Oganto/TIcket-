@@ -1,4 +1,4 @@
-import { ArrowUpRight, Menu, Ticket, X } from 'lucide-react'
+import { ArrowUpRight, Menu, X } from 'lucide-react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 
@@ -11,7 +11,7 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <Link className="brand" to="/" aria-label="The Take Over home">
-        <span className="brand-mark"><Ticket size={18} strokeWidth={2.4} /></span>
+        <span className="brand-mark"><img src="/abodmazine-logo.jpg" alt="Abodmazine TV" /></span>
         <span className="brand-name">THE TAKE OVER<span>EKSU · NOV 20</span></span>
       </Link>
       <nav className={menuOpen ? 'main-nav is-open' : 'main-nav'} aria-label="Main navigation" id="guest-navigation">
