@@ -13,14 +13,12 @@ Flow: landing → passes → bank-transfer payment → proof upload → admin ap
 - `src/App.tsx`, `src/data/event.ts`
 - `supabase/functions/send-ticket-email/index.ts` — emails the QR ticket after approval
 
-## Not in this repo yet (so it will not build on its own)
+## Project files
 
-`package.json`, `package-lock.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `vercel.json`,
-`.env.example`, `src/main.tsx`, `src/index.css`, `src/vite-env.d.ts`, `src/lib/supabase.ts`,
-`src/hooks/useTicketCatalog.ts`, `src/hooks/usePublicEvent.ts`,
-`src/components/SiteHeader.tsx`, `ScrollProgress.tsx`, `EventCountdown.tsx`, and `supabase/migrations/*.sql`.
+The Vite app, Supabase client, hooks, migrations, and config are in this repo.
+Build with `npm install` and `npm run build`. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel (see `.env.example`). Do not commit `.env`.
 
-The live site is currently deployed straight to Vercel (project `the-take-over-tickets`).
+The live site is deployed on Vercel (project `the-take-over-tickets`).
 
 ## Never commit secrets
 
