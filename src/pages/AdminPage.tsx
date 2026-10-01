@@ -34,6 +34,24 @@ const tabs = [
   { path: '/admin/settings', label: 'Settings', icon: Shield },
 ]
 
+function describeDbError(error: { message: string; details?: string | null; hint?: string | null; code?: string }) {
+  return [error.message, error.details, error.hint, error.code ? `(code ${error.code})` : ''].filter(Boolean).join(' · ')
+}
+
+async function describeFunctionError(error: unknown) {
+  const fallback = error instanceof Error ? error.message : 'Unknown error'
+  const context = (error as { context?: unknown } | null)?.context
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json() as { error?: string; details?: string }
+      if (body.error) return body.details ? `${body.error} (${body.details})` : body.error
+    } catch {
+      // The response body was not JSON; fall back to the generic message.
+    }
+  }
+  return fallback
+}
+
 export function AdminPage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -44,7 +62,8 @@ export function AdminPage() {
   const [search, setSearch] = useState('')
   const [proofLinks, setProofLinks] = useState<Record<string, string>>({})
   const [refresh, setRefresh] = useState(0)
-  const [message, setMessage] = useState('')
+  const [notice, setNotice] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
+  const [workingId, setWorkingId] = useState('')
   const [error, setError] = useState('')
   const tab = location.pathname === '/admin/orders' ? 'orders' : location.pathname === '/admin/tickets' ? 'tickets' : 'overview'
 
@@ -104,24 +123,31 @@ export function AdminPage() {
   }, [location.pathname, navigate, refresh, tab])
 
   async function reviewOrder(order: AdminOrder, approve: boolean) {
-    if (!supabase) return
-    setError('')
-    setMessage('')
+    if (!supabase || workingId) return
     if (!approve && !window.confirm('Reject this payment proof?')) return
-    const rpcName = approve ? 'approve_order' : 'reject_order'
-    const args = approve ? { p_order_id: order.id } : { p_order_id: order.id, p_reason: 'Payment proof rejected by admin' }
-    const { error: reviewError } = await supabase.rpc(rpcName, args)
-    if (reviewError) {
-      setError(reviewError.message)
-      return
+    setNotice(null)
+    setWorkingId(order.id)
+    try {
+      const rpcName = approve ? 'approve_order' : 'reject_order'
+      const args = approve ? { p_order_id: order.id } : { p_order_id: order.id, p_reason: 'Payment proof rejected by admin' }
+      const { error: reviewError } = await supabase.rpc(rpcName, args)
+      if (reviewError) {
+        setNotice({ kind: 'error', text: `${approve ? 'Approval' : 'Rejection'} failed: ${describeDbError(reviewError)}` })
+        return
+      }
+      if (approve) {
+        const { error: emailError } = await supabase.functions.invoke('send-ticket-email', { body: { orderId: order.id } })
+        if (emailError) setNotice({ kind: 'error', text: `Payment approved, but the ticket email was not sent: ${await describeFunctionError(emailError)}` })
+        else setNotice({ kind: 'success', text: 'Payment approved and ticket email sent.' })
+      } else {
+        setNotice({ kind: 'success', text: 'Payment marked as rejected.' })
+      }
+      setRefresh((value) => value + 1)
+    } catch (unexpected) {
+      setNotice({ kind: 'error', text: unexpected instanceof Error ? unexpected.message : 'Something went wrong. Please try again.' })
+    } finally {
+      setWorkingId('')
     }
-    if (approve) {
-      const { error: emailError } = await supabase.functions.invoke('send-ticket-email', { body: { orderId: order.id } })
-      setMessage(emailError ? `Payment approved. Ticket email could not be sent: ${emailError.message}` : 'Payment approved and ticket email sent.')
-    } else {
-      setMessage('Payment marked as rejected.')
-    }
-    setRefresh((value) => value + 1)
   }
 
   const filteredOrders = orders.filter((order) => `${order.id} ${order.profiles?.full_name ?? ''} ${order.profiles?.email ?? ''} ${order.payment_status}`.toLowerCase().includes(search.toLowerCase()))
@@ -134,7 +160,6 @@ export function AdminPage() {
         {tabs.map(({ path, label, icon: Icon }) => <Link key={path} className={location.pathname === path ? 'admin-tab active' : 'admin-tab'} to={path}><Icon size={16} />{label}</Link>)}
       </nav>
       {!loading && error && <p className="form-error" role="alert">{error}</p>}
-      {message && <p className="form-success" role="status">{message}</p>}
       {loading && <p className="state-message">Loading admin data…</p>}
       {authorized && !loading && tab === 'overview' && <section className="admin-stats">
         {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => <div className="admin-stat" key={status}><span>{status === 'all' ? 'Total orders' : `${status} payments`}</span><b>{status === 'all' ? orders.length : orders.filter((order) => order.payment_status === status).length}</b></div>)}
@@ -144,11 +169,12 @@ export function AdminPage() {
         {tab === 'orders' && <section className="admin-list">{filteredOrders.map((order) => <article className="admin-order" key={order.id}>
           <div className="admin-order-heading"><div><span className={`status-pill status-${order.payment_status}`}>{order.payment_status}</span><h2>{order.profiles?.full_name || 'Customer'}</h2><small>{order.profiles?.email} {order.profiles?.phone ? `· ${order.profiles.phone}` : ''}</small></div><strong>{Number(order.total_amount).toLocaleString()}</strong></div>
           <div className="admin-order-detail"><span>{order.ticket_types?.name} × {order.quantity}</span><span>{order.events?.name}</span><span>{new Date(order.created_at).toLocaleString()}</span></div>
-          {order.payment_status === 'pending' && <div className="admin-order-actions">{proofLinks[order.id] && <a className="proof-link" href={proofLinks[order.id]} target="_blank" rel="noreferrer">Open payment proof <ArrowUpRight size={15} /></a>}<div><button className="reject-button" onClick={() => void reviewOrder(order, false)}><X size={15} /> Reject</button><button className="approve-button" onClick={() => void reviewOrder(order, true)}><Check size={15} /> Approve</button></div></div>}
+          {order.payment_status === 'pending' && <div className="admin-order-actions">{proofLinks[order.id] && <a className="proof-link" href={proofLinks[order.id]} target="_blank" rel="noreferrer">Open payment proof <ArrowUpRight size={15} /></a>}<div><button className="reject-button" disabled={workingId !== ''} onClick={() => void reviewOrder(order, false)}><X size={15} /> Reject</button><button className="approve-button" disabled={workingId !== ''} onClick={() => void reviewOrder(order, true)}><Check size={15} /> {workingId === order.id ? 'Approving…' : 'Approve'}</button></div></div>}
           {order.payment_status === 'approved' && <div className="admin-order-detail">{order.tickets?.map((ticket) => <span key={ticket.id}>{ticket.ticket_code}{ticket.checked_in ? ' · Used' : ''}</span>)}</div>}
         </article>)}{filteredOrders.length === 0 && <p className="empty-admin">No matching orders.</p>}</section>}
         {tab === 'tickets' && <section className="admin-list">{filteredTickets.map((ticket) => <article className="admin-ticket-row" key={ticket.id}><div><strong>{ticket.ticket_code}</strong><span>{ticket.profiles?.full_name} · {ticket.profiles?.email}</span></div><span>{ticket.ticket_types?.name}</span><span className={ticket.checked_in ? 'ticket-used' : 'ticket-valid'}>{ticket.checked_in ? 'Used' : ticket.status}</span></article>)}{filteredTickets.length === 0 && <p className="empty-admin">No matching tickets.</p>}</section>}
       </>}
+      {notice && <div role={notice.kind === 'error' ? 'alert' : 'status'} style={{ position: 'fixed', left: 16, right: 16, bottom: 16, zIndex: 1000, maxWidth: 560, margin: '0 auto', padding: '14px 16px', borderRadius: 12, display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between', background: notice.kind === 'error' ? '#3a0f14' : '#0f3a26', color: '#fff', border: `1px solid ${notice.kind === 'error' ? '#ff6b6b' : '#3ddc97'}`, boxShadow: '0 10px 40px rgba(0,0,0,.5)', fontSize: 14, lineHeight: 1.4 }}><span>{notice.text}</span><button onClick={() => setNotice(null)} aria-label="Dismiss message" style={{ background: 'none', border: 0, color: 'inherit', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button></div>}
     </main>
   )
 }
